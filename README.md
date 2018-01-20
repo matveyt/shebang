@@ -3,8 +3,7 @@ shebang
 
 Summary
 -------
-An utility for _MSYS_/_MSYS2_ which allows to execute POSIX shell scripts from the
-native Windows command-line.
+An utility for _MSYS_/_MSYS2_ which allows to execute POSIX shell scripts transparently.
 
 Description
 -----------
