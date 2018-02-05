@@ -2,7 +2,7 @@
  * Proj: shebang
  * File: shebang.c
  * Auth: MatveyT
- * Date: 20.01.2018
+ * Date: 05.02.2018
  * Desc: Enables executing MSYS shell scripts from Windows(R) command line
  * Note: Rename or symlink to match the desired script and put both on PATH
  */
@@ -61,7 +61,7 @@ _FORCE_INLINE HRESULT WINAPI StringCchCatA(LPSTR,size_t,LPCSTR);
 _FORCE_INLINE HRESULT WINAPI StringCatWorkerA(LPSTR,size_t,LPCSTR);
 #endif // _UNICODE
 #endif // __GNUC__
-#endif // NO_LIBC
+#endif // NOSTDLIB
 #include <strsafe.h>
 
 
@@ -126,32 +126,32 @@ MSYS find_msys(PTSTR pszRoot, size_t cchRoot)
     // find first path matching one of the patterns
     MSYS msys = MSYS_UNKNOWN;
     TCHAR* cp;
-    size_t cch, cnt;
+    size_t cch;
     for (cp = achPATH; cchPATH; cp += cch + 1, cchPATH -= cch + 1) {
         if (FAILED(StringCchLength(cp, cchPATH, &cch)))
             break; // unexpected error
         if (PathMatchSpec(cp, _T("*\\msys*\\usr\\bin"))) {
             // found MSYS
             msys = MSYS_MSYS;
-            cnt = COUNT("\\usr\\bin") - 1;
+            cch -= COUNT("\\usr\\bin") - 1;
             break;
         }
         if (PathMatchSpec(cp, _T("*\\msys*\\mingw32\\bin"))) {
             // found MINGW32
             msys = MSYS_MINGW32;
-            cnt = COUNT("\\mingw32\\bin") - 1;
+            cch -= COUNT("\\mingw32\\bin") - 1;
             break;
         }
         if (PathMatchSpec(cp, _T("*\\msys*\\mingw64\\bin"))) {
             // found MINGW64
             msys = MSYS_MINGW64;
-            cnt = COUNT("\\mingw64\\bin") - 1;
+            cch -= COUNT("\\mingw64\\bin") - 1;
             break;
         }
     }
 
     if (msys != MSYS_UNKNOWN) // wipe last two dirs to get the root
-        StringCchCopyN(pszRoot, cchRoot, cp, cch - cnt);
+        StringCchCopyN(pszRoot, cchRoot, cp, cch);
     return msys;
 }
 
@@ -193,7 +193,7 @@ bool convert_path(PTSTR pszTo, size_t cchTo, PCTSTR pszRoot, const char* from)
         if (IS_LATIN(from[0]) && from[1] == '/') {
             tmp[0] = (TCHAR)from[0];
             tmp[1] = _T(':');
-            tmp[2] = '\0';
+            tmp[2] = _T('\0');
             from += COUNT("c/") - 1;
         } else {
             // start from MSYS root
