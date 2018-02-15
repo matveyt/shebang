@@ -83,7 +83,7 @@ typedef enum {
 
 
 // concats TCHAR string with UTF-8 string
-BOOL concat_with_utf8(TCHAR* pszDest, size_t cchDest, const char* src)
+BOOL concat_with_utf8(PTSTR pszDest, size_t cchDest, const char* src)
 {
     size_t cnt;
     if (FAILED(StringCchLength(pszDest, cchDest, &cnt)))
@@ -229,7 +229,7 @@ BOOL convert_path(PTSTR pszTo, size_t cchTo, PCTSTR pszRoot, const char* from)
 
 
 // parses a shebang line
-BOOL parse_line(char* line, size_t cnt, char** ppc1, char** ppc2)
+BOOL parse_line(char* line, size_t cnt, const char** ppc1, const char** ppc2)
 {
     char* cp;
 
@@ -291,7 +291,7 @@ BOOL can_shebang(PCTSTR pszScriptName, PTSTR pszShellName, size_t cchShellName,
     BOOL shebang = FALSE;
     char buf[cchShellName]; // VLA
     DWORD cb;
-    char *pc1, *pc2;
+    const char *pc1, *pc2;
     if (!ReadFile(hScriptFile, buf, cchShellName, &cb, NULL)) {
         // cannot read file
         *pdwErrorCode = GetLastError();
