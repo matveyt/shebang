@@ -2,7 +2,7 @@
  * Proj: shebang
  * File: shebang.c
  * Auth: MatveyT
- * Date: 05.02.2018
+ * Date: 15.02.2018
  * Desc: Enables executing MSYS shell scripts from Windows(R) command line
  * Note: Rename or symlink to match the desired script and put both on PATH
  */
@@ -10,7 +10,7 @@
 
 /** Build instructions:
 
-    -D_UNICODE -DUNICODE = builds 'unicode' version instead of 'ansi'
+    -DUNICODE = builds 'unicode' version instead of 'ansi'
     -DNOSTDLIB (also requires -O) = no libc dependencies, useful for GCC -nostdlib build
 
 **/
@@ -24,8 +24,6 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <shlwapi.h>
-#include <stdbool.h>
-#include <tchar.h>
 
 
 #ifndef __GNUC__
@@ -41,7 +39,7 @@
 #error Option -O is required.
 #endif // __NO_INLINE__
 #define _FORCE_INLINE inline __attribute__ ((always_inline))
-#ifdef _UNICODE
+#ifdef UNICODE
 _FORCE_INLINE HRESULT WINAPI StringCchLengthW(LPCWSTR,size_t,size_t*);
 _FORCE_INLINE HRESULT WINAPI StringLengthWorkerW(LPCWSTR,size_t,size_t*);
 _FORCE_INLINE HRESULT WINAPI StringCchCopyW(LPWSTR,size_t,LPCWSTR);
@@ -59,20 +57,20 @@ _FORCE_INLINE HRESULT WINAPI StringCchCopyNA(LPSTR,size_t,LPCSTR,size_t);
 _FORCE_INLINE HRESULT WINAPI StringCopyNWorkerA(LPSTR,size_t,LPCSTR,size_t);
 _FORCE_INLINE HRESULT WINAPI StringCchCatA(LPSTR,size_t,LPCSTR);
 _FORCE_INLINE HRESULT WINAPI StringCatWorkerA(LPSTR,size_t,LPCSTR);
-#endif // _UNICODE
+#endif // UNICODE
 #endif // __GNUC__
 #endif // NOSTDLIB
 #include <strsafe.h>
 
 
 // our original name
-#define PROGRAM_DEFAULT_NAME    "shebang"
+#define PROGRAM_NAME    "shebang"
 // macro to facilitate function calling
-#define COUNT(a)                (sizeof(a) / sizeof(*a))
-#define ARRAY(a)                (a), COUNT(a)
+#define COUNT(a)        (sizeof(a) / sizeof(*a))
+#define ARRAY(a)        (a), COUNT(a)
 // latin letter test
-#define IS_LATIN(c)             (('A' <= (c) && (c) <= 'Z') || \
-                                ('a' <= (c) && (c) <= 'z'))
+#define IS_LATIN(c)     (('A' <= (c) && (c) <= 'Z') || ('a' <= (c) && (c) <= 'z'))
+
 
 // known MSYS types
 typedef enum {
@@ -85,20 +83,20 @@ typedef enum {
 
 
 // concats TCHAR string with UTF-8 string
-bool concat_with_utf8(TCHAR* pszDest, size_t cchDest, const char* src)
+BOOL concat_with_utf8(TCHAR* pszDest, size_t cchDest, const char* src)
 {
     size_t cnt;
     if (FAILED(StringCchLength(pszDest, cchDest, &cnt)))
-        return false;
+        return FALSE;
 
-#ifdef _UNICODE
+#ifdef UNICODE
     return (MultiByteToWideChar(CP_UTF8, 0, src, -1, pszDest + cnt, cchDest - cnt) > 0);
 #else
     wchar_t tmp[cchDest - cnt]; // VLA
     return (MultiByteToWideChar(CP_UTF8, 0, src, -1, tmp, cchDest - cnt) > 0
         && WideCharToMultiByte(CP_ACP, 0, tmp, -1, pszDest + cnt, cchDest - cnt,
             NULL, NULL) > 0);
-#endif // _UNICODE
+#endif // UNICODE
 }
 
 
@@ -116,12 +114,12 @@ MSYS find_msys(PTSTR pszRoot, size_t cchRoot)
 {
     // get PATH
     TCHAR achPATH[4096]; // max
-    size_t cchPATH = (size_t)GetEnvironmentVariable(_T("PATH"), ARRAY(achPATH));
+    size_t cchPATH = (size_t)GetEnvironmentVariable(TEXT("PATH"), ARRAY(achPATH));
     if (!cchPATH || cchPATH > COUNT(achPATH))
         return MSYS_UNKNOWN; // unexpected error
 
     ++cchPATH; // count null-terminating character
-    replace_char(achPATH, _T('\0'), _T(';')); // split PATH
+    replace_char(achPATH, TEXT('\0'), TEXT(';')); // split PATH
 
     // find first path matching one of the patterns
     MSYS msys = MSYS_UNKNOWN;
@@ -130,19 +128,19 @@ MSYS find_msys(PTSTR pszRoot, size_t cchRoot)
     for (cp = achPATH; cchPATH; cp += cch + 1, cchPATH -= cch + 1) {
         if (FAILED(StringCchLength(cp, cchPATH, &cch)))
             break; // unexpected error
-        if (PathMatchSpec(cp, _T("*\\msys*\\usr\\bin"))) {
+        if (PathMatchSpec(cp, TEXT("*\\msys*\\usr\\bin"))) {
             // found MSYS
             msys = MSYS_MSYS;
             cch -= COUNT("\\usr\\bin") - 1;
             break;
         }
-        if (PathMatchSpec(cp, _T("*\\msys*\\mingw32\\bin"))) {
+        if (PathMatchSpec(cp, TEXT("*\\msys*\\mingw32\\bin"))) {
             // found MINGW32
             msys = MSYS_MINGW32;
             cch -= COUNT("\\mingw32\\bin") - 1;
             break;
         }
-        if (PathMatchSpec(cp, _T("*\\msys*\\mingw64\\bin"))) {
+        if (PathMatchSpec(cp, TEXT("*\\msys*\\mingw64\\bin"))) {
             // found MINGW64
             msys = MSYS_MINGW64;
             cch -= COUNT("\\mingw64\\bin") - 1;
@@ -161,28 +159,28 @@ void setup_msys_env(MSYS msys)
 {
     // MSYS names and POSIX prefixes
     static PCTSTR const pszMSYS[MSYS_COUNT][2] = {
-        { _T("MSYS"),       _T("/usr")      },
-        { _T("MINGW32"),    _T("/mingw32")  },
-        { _T("MINGW64"),    _T("/mingw64")  }
+        { TEXT("MSYS"), TEXT("/usr") },
+        { TEXT("MINGW32"), TEXT("/mingw32") },
+        { TEXT("MINGW64"), TEXT("/mingw64") }
     };
 
     // set MSYSTEM, MSYSTEM_PREFIX and MINGW_PREFIX
-    SetEnvironmentVariable(_T("MSYSTEM"), pszMSYS[msys][0]);
-    SetEnvironmentVariable(_T("MSYSTEM_PREFIX"), pszMSYS[msys][1]);
+    SetEnvironmentVariable(TEXT("MSYSTEM"), pszMSYS[msys][0]);
+    SetEnvironmentVariable(TEXT("MSYSTEM_PREFIX"), pszMSYS[msys][1]);
     if (msys == MSYS_MINGW32 || msys == MSYS_MINGW64)
-        SetEnvironmentVariable(_T("MINGW_PREFIX"), pszMSYS[msys][1]);
+        SetEnvironmentVariable(TEXT("MINGW_PREFIX"), pszMSYS[msys][1]);
 
     // set USER and HOSTNAME
     TCHAR tmp[256]; // max
-    if (GetEnvironmentVariable(_T("USERNAME"), ARRAY(tmp)))
-        SetEnvironmentVariable(_T("USER"), tmp);
+    if (GetEnvironmentVariable(TEXT("USERNAME"), ARRAY(tmp)))
+        SetEnvironmentVariable(TEXT("USER"), tmp);
     if (GetComputerNameEx(ComputerNameDnsHostname, tmp, &(DWORD) { COUNT(tmp) }))
-        SetEnvironmentVariable(_T("HOSTNAME"), tmp);
+        SetEnvironmentVariable(TEXT("HOSTNAME"), tmp);
 }
 
 
 // converts MSYS shell path to native path
-bool convert_path(PTSTR pszTo, size_t cchTo, PCTSTR pszRoot, const char* from)
+BOOL convert_path(PTSTR pszTo, size_t cchTo, PCTSTR pszRoot, const char* from)
 {
     TCHAR tmp[MAX_PATH];
 
@@ -192,8 +190,8 @@ bool convert_path(PTSTR pszTo, size_t cchTo, PCTSTR pszRoot, const char* from)
         // substitute: /c --> c:
         if (IS_LATIN(from[0]) && from[1] == '/') {
             tmp[0] = (TCHAR)from[0];
-            tmp[1] = _T(':');
-            tmp[2] = _T('\0');
+            tmp[1] = TEXT(':');
+            tmp[2] = TEXT('\0');
             from += COUNT("c/") - 1;
         } else {
             // start from MSYS root
@@ -201,7 +199,7 @@ bool convert_path(PTSTR pszTo, size_t cchTo, PCTSTR pszRoot, const char* from)
 
             // substitute: /bin --> /usr/bin
             if (from[0] == 'b' && from[1] == 'i' && from[2] == 'n' && from[3] == '/') {
-                StringCchCat(ARRAY(tmp), _T("/usr/bin"));
+                StringCchCat(ARRAY(tmp), TEXT("/usr/bin"));
                 from += COUNT("bin/") - 1;
             }
         }
@@ -210,17 +208,17 @@ bool convert_path(PTSTR pszTo, size_t cchTo, PCTSTR pszRoot, const char* from)
     }
 
     // add the rest
-    StringCchCat(ARRAY(tmp), _T("/"));
+    StringCchCat(ARRAY(tmp), TEXT("/"));
     if (!concat_with_utf8(ARRAY(tmp), from))
-        return false;
+        return FALSE;
 
     // apply native separators and .exe extension
-    replace_char(tmp, _T('\\'), _T('/')); // to Win separators
+    replace_char(tmp, TEXT('\\'), TEXT('/')); // to Win separators
     PathAddExtension(tmp, NULL); // note: PathCchAddExtension is for Win 8+ only
 
     // check if file exists
     if (!PathFileExists(tmp))
-        return false;
+        return FALSE;
 
     // executable name containing spaces should be enquoted for security reasons
     PathQuoteSpaces(tmp);
@@ -231,19 +229,19 @@ bool convert_path(PTSTR pszTo, size_t cchTo, PCTSTR pszRoot, const char* from)
 
 
 // parses a shebang line
-bool parse_line(char* line, size_t cnt, char** ppc1, char** ppc2)
+BOOL parse_line(char* line, size_t cnt, char** ppc1, char** ppc2)
 {
     char* cp;
 
     // #!
     if (cnt < 2 || *line++ != '#' || *line++ != '!')
-        return false;
+        return FALSE;
     cnt -= 2;
 
     // convert tabs to spaces, break at a newline
     for (cp = line; cnt; ++cp, --cnt) {
         if (*cp == '\0') // unexpected end of string
-            return false;
+            return FALSE;
         if (*cp == '\n' || *cp == '\r') {
             *cp = '\0';
             break;
@@ -252,12 +250,12 @@ bool parse_line(char* line, size_t cnt, char** ppc1, char** ppc2)
             *cp = ' ';
     }
     if (!cnt) // no newline
-        return false;
+        return FALSE;
 
     // skip leading spaces
     for (cp = line; *cp == ' '; ++cp) ;
     if (*cp == '\0') // shell not found
-        return false;
+        return FALSE;
 
     // store pointer to shell name
     *ppc1 = cp;
@@ -274,12 +272,12 @@ bool parse_line(char* line, size_t cnt, char** ppc1, char** ppc2)
         *ppc2 = NULL;
     }
 
-    return true;
+    return TRUE;
 }
 
 
 // checks if file is a shell script
-bool can_shebang(PCTSTR pszScriptName, PTSTR pszShellName, size_t cchShellName,
+BOOL can_shebang(PCTSTR pszScriptName, PTSTR pszShellName, size_t cchShellName,
     PCTSTR pszRoot, PDWORD pdwErrorCode)
 {
     // open script file
@@ -287,10 +285,10 @@ bool can_shebang(PCTSTR pszScriptName, PTSTR pszShellName, size_t cchShellName,
         NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (hScriptFile == INVALID_HANDLE_VALUE) {
         *pdwErrorCode = GetLastError();
-        return false;
+        return FALSE;
     }
 
-    bool shebang = false;
+    BOOL shebang = FALSE;
     char buf[cchShellName]; // VLA
     DWORD cb;
     char *pc1, *pc2;
@@ -306,9 +304,9 @@ bool can_shebang(PCTSTR pszScriptName, PTSTR pszShellName, size_t cchShellName,
     } else {
         // process shebang args if any
         shebang = pc2 ? (
-            SUCCEEDED(StringCchCat(pszShellName, cchShellName, _T(" "))) &&
+            SUCCEEDED(StringCchCat(pszShellName, cchShellName, TEXT(" "))) &&
             concat_with_utf8(pszShellName, cchShellName, pc2)
-        ) : true;
+        ) : TRUE;
         if (!shebang) // invalid shebang args
             *pdwErrorCode = ERROR_BAD_ARGUMENTS;
     }
@@ -330,7 +328,7 @@ void print_error_and_exit(DWORD dwErrorCode)
     if (cchErrorText > 0) {
         HANDLE hStdErr = GetStdHandle(STD_ERROR_HANDLE);
         DWORD cb;
-        WriteConsole(hStdErr, ARRAY(_T(PROGRAM_DEFAULT_NAME " error: ")) - 1, &cb, NULL);
+        WriteConsole(hStdErr, ARRAY(TEXT(PROGRAM_NAME " error: ")) - 1, &cb, NULL);
         WriteConsole(hStdErr, pszErrorText, cchErrorText, &cb, NULL);
         // no need to free memory, as we're going to exit anyway
         //HeapFree(GetProcessHeap(), 0, pszErrorText);
@@ -340,14 +338,18 @@ void print_error_and_exit(DWORD dwErrorCode)
 
 
 // application standard entry point
-int _tmain(void)
+#ifdef UNICODE
+int wmain(void)
+#else
+int main(void)
+#endif // UNICODE
 {
     DWORD dwErrorCode;
 
-#ifndef _UNICODE
+#ifndef UNICODE
     // get rid of OEM codepage
     SetConsoleOutputCP(GetACP());
-#endif // _UNICODE
+#endif // UNICODE
 
     // find our basename
     TCHAR szName[MAX_PATH];
@@ -357,9 +359,9 @@ int _tmain(void)
 
     // check if we're renamed
     if (CompareString(LOCALE_USER_DEFAULT, NORM_IGNORECASE, szName, -1,
-        _T(PROGRAM_DEFAULT_NAME), -1) == CSTR_EQUAL) {
-        WriteConsole(GetStdHandle(STD_ERROR_HANDLE), ARRAY(_T(
-"Hello Windows(R) world! It\'s me, humble \'" PROGRAM_DEFAULT_NAME "\' utility.\n\n"
+        TEXT(PROGRAM_NAME), -1) == CSTR_EQUAL) {
+        WriteConsole(GetStdHandle(STD_ERROR_HANDLE), ARRAY(TEXT(
+"Hello Windows(R) world! It\'s me, humble \'" PROGRAM_NAME "\' utility.\n\n"
 "I can help you to execute MSYS shell scripts from your native \'cmd\',\n"
 "but only if you already have MSYS on your PATH.\n\n"
 "All you have to do is to rename or symlink me, so that I match the script you want.\n"
@@ -386,16 +388,16 @@ int _tmain(void)
 
     // prepare script name for passing onto the shell
     PathQuoteSpaces(szName);
-    replace_char(szName, _T('/'), _T('\\')); // to POSIX separators
+    replace_char(szName, TEXT('/'), TEXT('\\')); // to POSIX separators
 
     // make the command line
     TCHAR szCmdLine[32768]; // max
     StringCchCopy(ARRAY(szCmdLine), szShellCmd);    // shell + shebang args
-    StringCchCat(ARRAY(szCmdLine), _T(" "));        // space
+    StringCchCat(ARRAY(szCmdLine), TEXT(" "));      // space
     StringCchCat(ARRAY(szCmdLine), szName);         // script
     PTSTR pszRawArgs = PathGetArgs(GetCommandLine());
     if (pszRawArgs && *pszRawArgs) {
-        StringCchCat(ARRAY(szCmdLine), _T(" "));    // space
+        StringCchCat(ARRAY(szCmdLine), TEXT(" "));  // space
         StringCchCat(ARRAY(szCmdLine), pszRawArgs); // our args
     }
 
