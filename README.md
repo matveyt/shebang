@@ -25,7 +25,7 @@ comes to help.
 
 Building
 --------
-_Shebang_ was successfully built and tested with _GCC/MinGW 7.2.0_.
+_Shebang_ was successfully built and tested with _GCC/MinGW 7.3.0_.
 
 There is a _meson_ project script provided with the distribution. You will need
 _meson_, _python3_ and _ninja_ to make use of it.
@@ -35,10 +35,10 @@ However, `shebang` could be also compiled in the command line. For example,
 
 The additional DEFINEs to control the building process are:
 
-    -D_UNICODE -DUNICODE
+    -DUNICODE
     -DNOSTDLIB
 
-`_UNICODE` and `UNICODE` are needed to build the "wide" version of an executable.
+`UNICODE` is needed to build the "wide" version of an executable.
 
 `NOSTDLIB` is useful for reducing the size of an executable by linking it with
 a custom startup code, such as _nocrt0_.
