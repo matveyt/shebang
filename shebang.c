@@ -2,7 +2,7 @@
  * Proj: shebang
  * File: shebang.c
  * Auth: MatveyT
- * Date: 15.02.2018
+ * Date: 17.06.2018
  * Desc: Enables executing MSYS shell scripts from Windows(R) command line
  * Note: Rename or symlink to match the desired script and put both on PATH
  */
@@ -184,31 +184,35 @@ BOOL convert_path(PTSTR pszTo, size_t cchTo, PCTSTR pszRoot, const char* from)
 {
     TCHAR tmp[MAX_PATH];
 
-    if (*from == '/') { // absolute path
+    if (IS_LATIN(from[0]) && from[1] == ':') { // Win path
+        tmp[0] = TEXT('\0');
+    } else if (*from == '/') { // POSIX path
         ++from;
 
         // substitute: /c --> c:
         if (IS_LATIN(from[0]) && from[1] == '/') {
             tmp[0] = (TCHAR)from[0];
             tmp[1] = TEXT(':');
-            tmp[2] = TEXT('\0');
+            tmp[2] = TEXT('/');
+            tmp[3] = TEXT('\0');
             from += COUNT("c/") - 1;
         } else {
             // start from MSYS root
             StringCchCopy(ARRAY(tmp), pszRoot);
+            StringCchCat(ARRAY(tmp), TEXT("/"));
 
             // substitute: /bin --> /usr/bin
             if (from[0] == 'b' && from[1] == 'i' && from[2] == 'n' && from[3] == '/') {
-                StringCchCat(ARRAY(tmp), TEXT("/usr/bin"));
+                StringCchCat(ARRAY(tmp), TEXT("usr/bin/"));
                 from += COUNT("bin/") - 1;
             }
         }
     } else { // relative path
         GetCurrentDirectory(COUNT(tmp), tmp);
+        StringCchCat(ARRAY(tmp), TEXT("/"));
     }
 
     // add the rest
-    StringCchCat(ARRAY(tmp), TEXT("/"));
     if (!concat_with_utf8(ARRAY(tmp), from))
         return FALSE;
 
