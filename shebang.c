@@ -2,7 +2,7 @@
  * Proj: shebang
  * File: shebang.c
  * Auth: MatveyT
- * Date: 17.06.2018
+ * Date: 07.07.2018
  * Desc: Enables executing MSYS shell scripts from Windows(R) command line
  * Note: Rename or symlink to match the desired script and put both on PATH
  */
@@ -184,7 +184,7 @@ BOOL convert_path(PTSTR pszTo, size_t cchTo, PCTSTR pszRoot, const char* from)
 {
     TCHAR tmp[MAX_PATH];
 
-    if (IS_LATIN(from[0]) && from[1] == ':') { // Win path
+    if (*from == '\\' || (IS_LATIN(from[0]) && from[1] == ':')) { // Win path
         tmp[0] = TEXT('\0');
     } else if (*from == '/') { // POSIX path
         ++from;
