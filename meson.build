@@ -2,21 +2,15 @@ project('shebang', 'c', default_options : ['buildtype=minsize', 'c_std=c99', \
     'debug=false', 'warning_level=3', 'werror=true'])
 
 
-cc = meson.get_compiler('c')
-gnu = (cc.get_id() == 'gcc')
-
-
+gnu = (meson.get_compiler('c').get_id() == 'gcc')
 sources = ['shebang.c']
 c_args = []
-link_args = []
-dependencies = [cc.find_library('shlwapi')]
+link_args = ['-lshlwapi']
 
 
-if not get_option('debug')
-    if gnu
-        c_args += '-fno-ident'
-        link_args += ['-s', '-Wl,--gc-sections']
-    endif
+if gnu and not get_option('debug')
+    c_args += '-fno-ident'
+    link_args += ['-s', '-Wl,--gc-sections']
 endif
 
 
@@ -31,12 +25,11 @@ endif
 if get_option('nostdlib')
     sources += 'nocrt0c.c'
     c_args += ['-DNOSTDLIB', '-DARGV=none']
-    dependencies += cc.find_library('kernel32')
+    link_args += '-lkernel32'
     if gnu
         link_args += '-nostdlib'
     endif
 endif
 
 
-executable('shebang', sources : sources, c_args : c_args, link_args : link_args, \
-    dependencies : dependencies)
+executable('shebang', sources : sources, c_args : c_args, link_args : link_args)
