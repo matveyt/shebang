@@ -25,7 +25,7 @@ comes to help.
 
 Building
 --------
-_Shebang_ was successfully built and tested with _GCC/MinGW 7.3.0_.
+_Shebang_ was successfully built and tested with _GCC/MSYS2 8.2.1_.
 
 There is a _meson_ project script provided with the distribution. You will need
 _meson_, _python3_ and _ninja_ to make use of it.
