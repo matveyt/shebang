@@ -1,8 +1,6 @@
 /*
  * Proj: shebang
- * File: shebang.c
- * Auth: MatveyT
- * Date: 07.07.2018
+ * Auth: matveyt
  * Desc: Enables executing MSYS shell scripts from Windows(R) command line
  * Note: Rename or symlink to match the desired script and put both on PATH
  */

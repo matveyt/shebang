@@ -1,5 +1,5 @@
 BUILDTYPE ?= minsize
-NOSTDLIB ?= on
+NOSTDLIB ?= off
 UNICODE ?= on
 include yama.mk
 
@@ -9,7 +9,7 @@ define NOSTDLIB.on
     CPPFLAGS += -DNOSTDLIB -DARGV=none
     LDFLAGS += -nostdlib
     LDLIBS += -lkernel32
-    $$(call yama.goalExe,shebang,nocrt0c)
+    $$(call yama.goalExe,shebang,../nocrt0/nocrt0c)
 endef
 define UNICODE.on
     CPPFLAGS += -D_UNICODE -DUNICODE
