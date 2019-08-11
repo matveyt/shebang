@@ -17,6 +17,6 @@ define UNICODE.on
 endef
 $(call yama.options,NOSTDLIB UNICODE)
 
-all : shebang
+all: shebang
 $(call yama.goalExe,shebang,shebang)
 $(call yama.rules)
