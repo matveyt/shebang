@@ -1,7 +1,7 @@
 /*
  * Proj: shebang
  * Auth: matveyt
- * Desc: Enables executing MSYS shell scripts from Windows(R) command line
+ * Desc: Allows direct execution of MSYS/Cygwin shebang scripts
  * Note: Rename or symlink to match the desired script and put both on PATH
  */
 
@@ -70,14 +70,35 @@ _FORCE_INLINE HRESULT WINAPI StringCatWorkerA(LPSTR,size_t,LPCSTR);
 #define IS_LATIN(c)     (('A' <= (c) && (c) <= 'Z') || ('a' <= (c) && (c) <= 'z'))
 
 
-// known MSYS types
-typedef enum {
-    MSYS_UNKNOWN = -1,
-    MSYS_MSYS,      // MSYS
-    MSYS_MINGW32,   // MINGW32
-    MSYS_MINGW64,   // MINGW64
-    MSYS_COUNT
-} MSYS;
+// known POSIX layers
+typedef struct {
+    enum {
+        POSIX_UNKNOWN = -1,
+        POSIX_MSYS,     // MSYS
+        POSIX_MINGW32,  // MINGW32
+        POSIX_MINGW64,  // MINGW64
+        POSIX_CYGWIN,   // Cygwin
+        POSIX_COUNT
+    } sys;
+    TCHAR root[MAX_PATH];
+} POSIX;
+
+
+// internal implementation of memcpy()
+int compare_bytes(const void* s1, const void* s2, size_t n)
+{
+    const unsigned char* p1 = s1;
+    const unsigned char* p2 = s2;
+
+    do {
+        int b1 = *p1++;
+        int b2 = *p2++;
+        if (b1 != b2)
+            return (b1 - b2);
+    } while (--n);
+
+    return 0;
+}
 
 
 // concats TCHAR string with UTF-8 string
@@ -107,20 +128,22 @@ void replace_char(PTSTR psz, TCHAR cTo, TCHAR cFrom)
 }
 
 
-// finds active MSYS installation by scanning PATH
-MSYS find_msys(PTSTR pszRoot, size_t cchRoot)
+// finds active MSYS/Cygwin installation by scanning PATH
+void find_posix(POSIX* ppx)
 {
+    // nothing found yet
+    ppx->sys = POSIX_UNKNOWN;
+
     // get PATH
     TCHAR achPATH[4096]; // max
     size_t cchPATH = (size_t)GetEnvironmentVariable(TEXT("PATH"), ARRAY(achPATH));
     if (!cchPATH || cchPATH > COUNT(achPATH))
-        return MSYS_UNKNOWN; // unexpected error
+        return; // unexpected error
 
     ++cchPATH; // count null-terminating character
     replace_char(achPATH, TEXT('\0'), TEXT(';')); // split PATH
 
     // find first path matching one of the patterns
-    MSYS msys = MSYS_UNKNOWN;
     TCHAR* cp;
     size_t cch;
     for (cp = achPATH; cchPATH; cp += cch + 1, cchPATH -= cch + 1) {
@@ -128,45 +151,51 @@ MSYS find_msys(PTSTR pszRoot, size_t cchRoot)
             break; // unexpected error
         if (PathMatchSpec(cp, TEXT("*\\msys*\\usr\\bin"))) {
             // found MSYS
-            msys = MSYS_MSYS;
+            ppx->sys = POSIX_MSYS;
             cch -= COUNT("\\usr\\bin") - 1;
             break;
         }
         if (PathMatchSpec(cp, TEXT("*\\msys*\\mingw32\\bin"))) {
             // found MINGW32
-            msys = MSYS_MINGW32;
+            ppx->sys = POSIX_MINGW32;
             cch -= COUNT("\\mingw32\\bin") - 1;
             break;
         }
         if (PathMatchSpec(cp, TEXT("*\\msys*\\mingw64\\bin"))) {
             // found MINGW64
-            msys = MSYS_MINGW64;
+            ppx->sys = POSIX_MINGW64;
             cch -= COUNT("\\mingw64\\bin") - 1;
+            break;
+        }
+        if (PathMatchSpec(cp, TEXT("*\\cygwin*\\bin"))) {
+            // found Cygwin
+            ppx->sys = POSIX_CYGWIN;
+            cch -= COUNT("\\bin") - 1;
             break;
         }
     }
 
-    if (msys != MSYS_UNKNOWN) // wipe last two dirs to get the root
-        StringCchCopyN(pszRoot, cchRoot, cp, cch);
-    return msys;
+    if (ppx->sys != POSIX_UNKNOWN) // wipe last dirs to get the root
+        StringCchCopyN(ARRAY(ppx->root), cp, cch);
 }
 
 
-// sets some of MSYS environment variables
-void setup_msys_env(MSYS msys)
+// sets some of MSYS/Cygwin environment variables
+void setup_posix_env(POSIX* ppx)
 {
     // MSYS names and POSIX prefixes
-    static PCTSTR const pszMSYS[MSYS_COUNT][2] = {
+    static PCTSTR const pszMSYS[POSIX_COUNT][2] = {
         { TEXT("MSYS"), TEXT("/usr") },
         { TEXT("MINGW32"), TEXT("/mingw32") },
-        { TEXT("MINGW64"), TEXT("/mingw64") }
+        { TEXT("MINGW64"), TEXT("/mingw64") },
+        { NULL, NULL }
     };
 
     // set MSYSTEM, MSYSTEM_PREFIX and MINGW_PREFIX
-    SetEnvironmentVariable(TEXT("MSYSTEM"), pszMSYS[msys][0]);
-    SetEnvironmentVariable(TEXT("MSYSTEM_PREFIX"), pszMSYS[msys][1]);
-    if (msys == MSYS_MINGW32 || msys == MSYS_MINGW64)
-        SetEnvironmentVariable(TEXT("MINGW_PREFIX"), pszMSYS[msys][1]);
+    SetEnvironmentVariable(TEXT("MSYSTEM"), pszMSYS[ppx->sys][0]);
+    SetEnvironmentVariable(TEXT("MSYSTEM_PREFIX"), pszMSYS[ppx->sys][1]);
+    if (ppx->sys == POSIX_MINGW32 || ppx->sys == POSIX_MINGW64)
+        SetEnvironmentVariable(TEXT("MINGW_PREFIX"), pszMSYS[ppx->sys][1]);
 
     // set USER and HOSTNAME
     TCHAR tmp[256]; // max
@@ -177,8 +206,8 @@ void setup_msys_env(MSYS msys)
 }
 
 
-// converts MSYS shell path to native path
-BOOL convert_path(PTSTR pszTo, size_t cchTo, PCTSTR pszRoot, const char* from)
+// converts POSIX path to native path
+BOOL convert_path(PTSTR pszTo, size_t cchTo, POSIX* ppx, const char* from)
 {
     TCHAR tmp[MAX_PATH];
 
@@ -186,6 +215,10 @@ BOOL convert_path(PTSTR pszTo, size_t cchTo, PCTSTR pszRoot, const char* from)
         tmp[0] = TEXT('\0');
     } else if (*from == '/') { // POSIX path
         ++from;
+
+        // skip over cygdrive/
+        if (!compare_bytes(from, ARRAY("cygdrive/") - 1))
+            from += COUNT("cygdrive/") - 1;
 
         // substitute: /c --> c:
         if (IS_LATIN(from[0]) && from[1] == '/') {
@@ -195,14 +228,22 @@ BOOL convert_path(PTSTR pszTo, size_t cchTo, PCTSTR pszRoot, const char* from)
             tmp[3] = TEXT('\0');
             from += COUNT("c/") - 1;
         } else {
-            // start from MSYS root
-            StringCchCopy(ARRAY(tmp), pszRoot);
+            // start from POSIX root
+            StringCchCopy(ARRAY(tmp), ppx->root);
             StringCchCat(ARRAY(tmp), TEXT("/"));
 
-            // substitute: /bin --> /usr/bin
-            if (from[0] == 'b' && from[1] == 'i' && from[2] == 'n' && from[3] == '/') {
-                StringCchCat(ARRAY(tmp), TEXT("usr/bin/"));
-                from += COUNT("bin/") - 1;
+            if (ppx->sys == POSIX_CYGWIN) {
+                // /usr/bin --> /bin
+                if (!compare_bytes(from, ARRAY("usr/bin/") - 1)) {
+                    StringCchCat(ARRAY(tmp), TEXT("bin/"));
+                    from += COUNT("usr/bin/") - 1;
+                }
+            }  else {
+                // /bin --> /usr/bin
+                if (!compare_bytes(from, ARRAY("bin/") - 1)) {
+                    StringCchCat(ARRAY(tmp), TEXT("usr/bin/"));
+                    from += COUNT("bin/") - 1;
+                }
             }
         }
     } else { // relative path
@@ -280,7 +321,7 @@ BOOL parse_line(char* line, size_t cnt, const char** ppc1, const char** ppc2)
 
 // checks if file is a shell script
 BOOL can_shebang(PCTSTR pszScriptName, PTSTR pszShellName, size_t cchShellName,
-    PCTSTR pszRoot, PDWORD pdwErrorCode)
+    POSIX* ppx, PDWORD pdwErrorCode)
 {
     // open script file
     HANDLE hScriptFile = CreateFile(pszScriptName, GENERIC_READ, FILE_SHARE_READ,
@@ -300,7 +341,7 @@ BOOL can_shebang(PCTSTR pszScriptName, PTSTR pszShellName, size_t cchShellName,
     } else if (!parse_line(buf, (size_t)cb, &pc1, &pc2)) {
         // not a script
         *pdwErrorCode = ERROR_BAD_FORMAT;
-    } else if (!convert_path(pszShellName, cchShellName, pszRoot, pc1)) {
+    } else if (!convert_path(pszShellName, cchShellName, ppx, pc1)) {
         // invalid shell
         *pdwErrorCode = ERROR_PATH_NOT_FOUND;
     } else {
@@ -364,8 +405,8 @@ int main(void)
         TEXT(PROGRAM_NAME), -1) == CSTR_EQUAL) {
         WriteConsole(GetStdHandle(STD_ERROR_HANDLE), ARRAY(TEXT(
 "Hello Windows(R) world! It\'s me, humble \'" PROGRAM_NAME "\' utility.\n\n"
-"I can help you to execute MSYS shell scripts from your native \'cmd\',\n"
-"but only if you already have MSYS on your PATH.\n\n"
+"I can help you to execute MSYS/Cygwin shell scripts from your native \'cmd\',\n"
+"but only if you already have it on your PATH.\n\n"
 "All you have to do is to rename or symlink me, so that I match the script you want.\n"
 "And, of course, please, make sure that we\'re both on the PATH too.\n\n"
 "Let\'s do it!\n\n"
@@ -373,10 +414,10 @@ int main(void)
         print_error_and_exit(ERROR_CANT_RESOLVE_FILENAME);
     }
 
-    // find MSYS root
-    TCHAR szMSYSRoot[MAX_PATH];
-    MSYS msys = find_msys(ARRAY(szMSYSRoot));
-    if (msys == MSYS_UNKNOWN)
+    // find POSIX root
+    POSIX px;
+    find_posix(&px);
+    if (px.sys == POSIX_UNKNOWN)
         print_error_and_exit(ERROR_INVALID_ENVIRONMENT);
 
     // find matching shell script on PATH
@@ -385,7 +426,7 @@ int main(void)
 
     // can she bang?
     TCHAR szShellCmd[MAX_PATH];
-    if (!can_shebang(szName, ARRAY(szShellCmd), szMSYSRoot, &dwErrorCode))
+    if (!can_shebang(szName, ARRAY(szShellCmd), &px, &dwErrorCode))
         print_error_and_exit(dwErrorCode);
 
     // prepare script name for passing onto the shell
@@ -403,8 +444,8 @@ int main(void)
         StringCchCat(ARRAY(szCmdLine), pszRawArgs); // our args
     }
 
-    // setup MSYS environment
-    setup_msys_env(msys);
+    // setup POSIX environment
+    setup_posix_env(&px);
 
     // launch the shell
     PROCESS_INFORMATION pi = { 0 };

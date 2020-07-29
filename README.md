@@ -3,7 +3,7 @@ shebang
 
 Summary
 -------
-An utility for _MSYS_/_MSYS2_ which allows to execute POSIX shell scripts transparently.
+An utility for _MSYS2/Cygwin_ which allows to execute POSIX shell scripts transparently.
 
 Description
 -----------
@@ -20,12 +20,12 @@ It's quite easy to come up with the "wrapper script" solution, for example:
 will execute any POSIX script (or native binary) called "shebang" found on PATH. However,
 any (incorrectly ported) application will fail if it tries to execute such script by
 spawning it directly, which is normal for the POSIX world, but not for Windows, where one
-needs to provide an explicit command, such as `cmd /C shebang.cmd`. This is where _shebang_
-comes to help.
+needs to provide an explicit command, such as `cmd /C shebang.cmd`. This is where
+_shebang_ comes to help.
 
 Building
 --------
-_Shebang_ was successfully built and tested with _GCC/MSYS2 8.2.1_.
+_Shebang_ was successfully built and tested with _GCC/MSYS2 10.2.0_.
 
 There is a _meson_ project script provided with the distribution. You will need
 _meson_, _python3_ and _ninja_ to make use of it.
@@ -45,6 +45,6 @@ a custom startup code, such as _nocrt0_.
 
 Using
 -----
-Simply rename or symlink _shebang_, so its name matches the script you want and put it on PATH.
-Now upon execution _shebang_ will find the script on PATH, parse its first (aka "shebang") line,
-and execute it with own command-line arguments.
+Simply rename or symlink _shebang_, so its name matches the script you want and put it on
+PATH. Now upon execution _shebang_ will find the script on PATH, parse its first (aka
+"shebang") line, and execute it with own command-line arguments.
