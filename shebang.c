@@ -84,7 +84,7 @@ typedef struct {
 } POSIX;
 
 
-// internal implementation of memcpy()
+// internal implementation of memcmp()
 int compare_bytes(const void* s1, const void* s2, size_t n)
 {
     const unsigned char* p1 = s1;
