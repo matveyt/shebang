@@ -74,9 +74,11 @@ _FORCE_INLINE HRESULT WINAPI StringCatWorkerA(LPSTR,size_t,LPCSTR);
 typedef struct {
     enum {
         POSIX_UNKNOWN = -1,
-        POSIX_MSYS,     // MSYS
         POSIX_MINGW32,  // MINGW32
         POSIX_MINGW64,  // MINGW64
+        POSIX_UCRT64,   // UCRT64
+        POSIX_CLANG64,  // CLANG64
+        POSIX_MSYS,     // MSYS
         POSIX_CYGWIN,   // Cygwin
         POSIX_COUNT
     } sys;
@@ -149,12 +151,6 @@ void find_posix(POSIX* ppx)
     for (cp = achPATH; cchPATH; cp += cch + 1, cchPATH -= cch + 1) {
         if (FAILED(StringCchLength(cp, cchPATH, &cch)))
             break; // unexpected error
-        if (PathMatchSpec(cp, TEXT("*\\msys*\\usr\\bin"))) {
-            // found MSYS
-            ppx->sys = POSIX_MSYS;
-            cch -= COUNT("\\usr\\bin") - 1;
-            break;
-        }
         if (PathMatchSpec(cp, TEXT("*\\msys*\\mingw32\\bin"))) {
             // found MINGW32
             ppx->sys = POSIX_MINGW32;
@@ -165,6 +161,24 @@ void find_posix(POSIX* ppx)
             // found MINGW64
             ppx->sys = POSIX_MINGW64;
             cch -= COUNT("\\mingw64\\bin") - 1;
+            break;
+        }
+        if (PathMatchSpec(cp, TEXT("*\\msys*\\ucrt64\\bin"))) {
+            // found UCRT64
+            ppx->sys = POSIX_UCRT64;
+            cch -= COUNT("\\ucrt64\\bin") - 1;
+            break;
+        }
+        if (PathMatchSpec(cp, TEXT("*\\msys*\\clang64\\bin"))) {
+            // found CLANG64
+            ppx->sys = POSIX_CLANG64;
+            cch -= COUNT("\\clang64\\bin") - 1;
+            break;
+        }
+        if (PathMatchSpec(cp, TEXT("*\\msys*\\usr\\bin"))) {
+            // found MSYS
+            ppx->sys = POSIX_MSYS;
+            cch -= COUNT("\\usr\\bin") - 1;
             break;
         }
         if (PathMatchSpec(cp, TEXT("*\\cygwin*\\bin"))) {
@@ -185,17 +199,19 @@ void setup_posix_env(POSIX* ppx)
 {
     // MSYS names and POSIX prefixes
     static PCTSTR const pszMSYS[POSIX_COUNT][2] = {
-        { TEXT("MSYS"), TEXT("/usr") },
         { TEXT("MINGW32"), TEXT("/mingw32") },
         { TEXT("MINGW64"), TEXT("/mingw64") },
+        { TEXT("UCRT64"), TEXT("/ucrt64") },
+        { TEXT("CLANG64"), TEXT("/clang64") },
+        { TEXT("MSYS"), TEXT("/usr") },
         { NULL, NULL }
     };
 
     // set MSYSTEM, MSYSTEM_PREFIX and MINGW_PREFIX
     SetEnvironmentVariable(TEXT("MSYSTEM"), pszMSYS[ppx->sys][0]);
     SetEnvironmentVariable(TEXT("MSYSTEM_PREFIX"), pszMSYS[ppx->sys][1]);
-    if (ppx->sys == POSIX_MINGW32 || ppx->sys == POSIX_MINGW64)
-        SetEnvironmentVariable(TEXT("MINGW_PREFIX"), pszMSYS[ppx->sys][1]);
+    SetEnvironmentVariable(TEXT("MINGW_PREFIX"),
+        ppx->sys == POSIX_MSYS ? NULL : pszMSYS[ppx->sys][1]);
 
     // set USER and HOSTNAME
     TCHAR tmp[256]; // max
@@ -373,7 +389,7 @@ void print_error_and_exit(DWORD dwErrorCode)
         DWORD cb;
         WriteConsole(hStdErr, ARRAY(TEXT(PROGRAM_NAME " error: ")) - 1, &cb, NULL);
         WriteConsole(hStdErr, pszErrorText, cchErrorText, &cb, NULL);
-        // no need to free memory, as we're going to exit anyway
+        // no need to free memory before exit
         //HeapFree(GetProcessHeap(), 0, pszErrorText);
     }
     ExitProcess(dwErrorCode);
@@ -433,7 +449,7 @@ int main(void)
     PathQuoteSpaces(szName);
     replace_char(szName, TEXT('/'), TEXT('\\')); // to POSIX separators
 
-    // make the command line
+    // make command line
     TCHAR szCmdLine[32768]; // max
     StringCchCopy(ARRAY(szCmdLine), szShellCmd);    // shell + shebang args
     StringCchCat(ARRAY(szCmdLine), TEXT(" "));      // space
@@ -447,7 +463,7 @@ int main(void)
     // setup POSIX environment
     setup_posix_env(&px);
 
-    // launch the shell
+    // launch shell
     PROCESS_INFORMATION pi = { 0 };
     if (!CreateProcess(NULL, szCmdLine, NULL, NULL, FALSE, 0, NULL, NULL,
         &(STARTUPINFO) { .cb = sizeof(STARTUPINFO) }, &pi))
@@ -456,7 +472,8 @@ int main(void)
     // wait for the child and exit
     WaitForSingleObject(pi.hProcess, INFINITE);
     GetExitCodeProcess(pi.hProcess, &dwErrorCode);
-    CloseHandle(pi.hProcess);
-    CloseHandle(pi.hThread);
+    // no need to close handles before exit
+    //CloseHandle(pi.hProcess);
+    //CloseHandle(pi.hThread);
     return (int)dwErrorCode;
 }
