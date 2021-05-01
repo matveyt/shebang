@@ -77,6 +77,7 @@ typedef struct {
         POSIX_MINGW32,  // MINGW32
         POSIX_MINGW64,  // MINGW64
         POSIX_UCRT64,   // UCRT64
+        POSIX_CLANG32,  // CLANG32
         POSIX_CLANG64,  // CLANG64
         POSIX_MSYS,     // MSYS
         POSIX_CYGWIN,   // Cygwin
@@ -169,6 +170,12 @@ void find_posix(POSIX* ppx)
             cch -= COUNT("\\ucrt64\\bin") - 1;
             break;
         }
+        if (PathMatchSpec(cp, TEXT("*\\msys*\\clang32\\bin"))) {
+            // found CLANG32
+            ppx->sys = POSIX_CLANG32;
+            cch -= COUNT("\\clang32\\bin") - 1;
+            break;
+        }
         if (PathMatchSpec(cp, TEXT("*\\msys*\\clang64\\bin"))) {
             // found CLANG64
             ppx->sys = POSIX_CLANG64;
@@ -202,6 +209,7 @@ void setup_posix_env(POSIX* ppx)
         { TEXT("MINGW32"), TEXT("/mingw32") },
         { TEXT("MINGW64"), TEXT("/mingw64") },
         { TEXT("UCRT64"), TEXT("/ucrt64") },
+        { TEXT("CLANG32"), TEXT("/clang32") },
         { TEXT("CLANG64"), TEXT("/clang64") },
         { TEXT("MSYS"), TEXT("/usr") },
         { NULL, NULL }
