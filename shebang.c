@@ -74,13 +74,14 @@ _FORCE_INLINE HRESULT WINAPI StringCatWorkerA(LPSTR,size_t,LPCSTR);
 typedef struct {
     enum {
         POSIX_UNKNOWN = -1,
-        POSIX_MINGW32,  // MINGW32
-        POSIX_MINGW64,  // MINGW64
-        POSIX_UCRT64,   // UCRT64
-        POSIX_CLANG32,  // CLANG32
-        POSIX_CLANG64,  // CLANG64
-        POSIX_MSYS,     // MSYS
-        POSIX_CYGWIN,   // Cygwin
+        POSIX_CLANGARM64,   // CLANGARM64
+        POSIX_MINGW32,      // MINGW32
+        POSIX_MINGW64,      // MINGW64
+        POSIX_UCRT64,       // UCRT64
+        POSIX_CLANG32,      // CLANG32
+        POSIX_CLANG64,      // CLANG64
+        POSIX_MSYS,         // MSYS
+        POSIX_CYGWIN,       // Cygwin
         POSIX_COUNT
     } sys;
     TCHAR root[MAX_PATH];
@@ -134,6 +135,21 @@ void replace_char(PTSTR psz, TCHAR cTo, TCHAR cFrom)
 // finds active MSYS/Cygwin installation by scanning PATH
 void find_posix(POSIX* ppx)
 {
+    // root paths
+    static const struct {
+        PCTSTR spec;
+        size_t tail;
+    } sRoot[POSIX_COUNT] = {
+        { TEXT("*\\msys*\\clangarm64\\bin"),    COUNT("\\clangarm64\\bin") - 1 },
+        { TEXT("*\\msys*\\mingw32\\bin"),       COUNT("\\mingw32\\bin") - 1 },
+        { TEXT("*\\msys*\\mingw64\\bin"),       COUNT("\\mingw64\\bin") - 1 },
+        { TEXT("*\\msys*\\ucrt64\\bin"),        COUNT("\\ucrt64\\bin") - 1 },
+        { TEXT("*\\msys*\\clang32\\bin"),       COUNT("\\clang32\\bin") - 1 },
+        { TEXT("*\\msys*\\clang64\\bin"),       COUNT("\\clang64\\bin") - 1 },
+        { TEXT("*\\msys*\\usr\\bin"),           COUNT("\\usr\\bin") - 1 },
+        { TEXT("*\\cygwin*\\bin"),              COUNT("\\bin") - 1 }
+    };
+
     // nothing found yet
     ppx->sys = POSIX_UNKNOWN;
 
@@ -147,57 +163,19 @@ void find_posix(POSIX* ppx)
     replace_char(achPATH, TEXT('\0'), TEXT(';')); // split PATH
 
     // find first path matching one of the patterns
-    TCHAR* cp;
     size_t cch;
-    for (cp = achPATH; cchPATH; cp += cch + 1, cchPATH -= cch + 1) {
+    for (TCHAR* cp = achPATH; cchPATH; cp += cch + 1, cchPATH -= cch + 1) {
         if (FAILED(StringCchLength(cp, cchPATH, &cch)))
             break; // unexpected error
-        if (PathMatchSpec(cp, TEXT("*\\msys*\\mingw32\\bin"))) {
-            // found MINGW32
-            ppx->sys = POSIX_MINGW32;
-            cch -= COUNT("\\mingw32\\bin") - 1;
-            break;
-        }
-        if (PathMatchSpec(cp, TEXT("*\\msys*\\mingw64\\bin"))) {
-            // found MINGW64
-            ppx->sys = POSIX_MINGW64;
-            cch -= COUNT("\\mingw64\\bin") - 1;
-            break;
-        }
-        if (PathMatchSpec(cp, TEXT("*\\msys*\\ucrt64\\bin"))) {
-            // found UCRT64
-            ppx->sys = POSIX_UCRT64;
-            cch -= COUNT("\\ucrt64\\bin") - 1;
-            break;
-        }
-        if (PathMatchSpec(cp, TEXT("*\\msys*\\clang32\\bin"))) {
-            // found CLANG32
-            ppx->sys = POSIX_CLANG32;
-            cch -= COUNT("\\clang32\\bin") - 1;
-            break;
-        }
-        if (PathMatchSpec(cp, TEXT("*\\msys*\\clang64\\bin"))) {
-            // found CLANG64
-            ppx->sys = POSIX_CLANG64;
-            cch -= COUNT("\\clang64\\bin") - 1;
-            break;
-        }
-        if (PathMatchSpec(cp, TEXT("*\\msys*\\usr\\bin"))) {
-            // found MSYS
-            ppx->sys = POSIX_MSYS;
-            cch -= COUNT("\\usr\\bin") - 1;
-            break;
-        }
-        if (PathMatchSpec(cp, TEXT("*\\cygwin*\\bin"))) {
-            // found Cygwin
-            ppx->sys = POSIX_CYGWIN;
-            cch -= COUNT("\\bin") - 1;
-            break;
+
+        for (int i = 0; i < POSIX_COUNT; ++i) {
+            if (PathMatchSpec(cp, sRoot[i].spec)) {
+                ppx->sys = i;
+                StringCchCopyN(ARRAY(ppx->root), cp, cch - sRoot[i].tail);
+                return;
+            }
         }
     }
-
-    if (ppx->sys != POSIX_UNKNOWN) // wipe last dirs to get the root
-        StringCchCopyN(ARRAY(ppx->root), cp, cch);
 }
 
 
@@ -206,13 +184,14 @@ void setup_posix_env(POSIX* ppx)
 {
     // MSYS names and POSIX prefixes
     static PCTSTR const pszMSYS[POSIX_COUNT][2] = {
-        { TEXT("MINGW32"), TEXT("/mingw32") },
-        { TEXT("MINGW64"), TEXT("/mingw64") },
-        { TEXT("UCRT64"), TEXT("/ucrt64") },
-        { TEXT("CLANG32"), TEXT("/clang32") },
-        { TEXT("CLANG64"), TEXT("/clang64") },
-        { TEXT("MSYS"), TEXT("/usr") },
-        { NULL, NULL }
+        { TEXT("CLANGARM64"),   TEXT("/clangarm64") },
+        { TEXT("MINGW32"),      TEXT("/mingw32") },
+        { TEXT("MINGW64"),      TEXT("/mingw64") },
+        { TEXT("UCRT64"),       TEXT("/ucrt64") },
+        { TEXT("CLANG32"),      TEXT("/clang32") },
+        { TEXT("CLANG64"),      TEXT("/clang64") },
+        { TEXT("MSYS"),         TEXT("/usr") },
+        { NULL,                 NULL }
     };
 
     // set MSYSTEM, MSYSTEM_PREFIX and MINGW_PREFIX
