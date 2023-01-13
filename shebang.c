@@ -65,7 +65,9 @@ _FORCE_INLINE HRESULT WINAPI StringCatWorkerA(LPSTR,size_t,LPCSTR);
 #define PROGRAM_NAME    "shebang"
 // macro to facilitate function calling
 #define COUNT(a)        (sizeof(a) / sizeof(*a))
+#define COUNT1(a)       (COUNT(a) - 1)
 #define ARRAY(a)        (a), COUNT(a)
+#define ARRAY1(a)       (a), COUNT1(a)
 // latin letter test
 #define IS_LATIN(c)     (('A' <= (c) && (c) <= 'Z') || ('a' <= (c) && (c) <= 'z'))
 
@@ -140,14 +142,14 @@ void find_posix(POSIX* ppx)
         PCTSTR spec;
         size_t tail;
     } sRoot[POSIX_COUNT] = {
-        { TEXT("*\\msys*\\clangarm64\\bin"),    COUNT("\\clangarm64\\bin") - 1 },
-        { TEXT("*\\msys*\\mingw32\\bin"),       COUNT("\\mingw32\\bin") - 1 },
-        { TEXT("*\\msys*\\mingw64\\bin"),       COUNT("\\mingw64\\bin") - 1 },
-        { TEXT("*\\msys*\\ucrt64\\bin"),        COUNT("\\ucrt64\\bin") - 1 },
-        { TEXT("*\\msys*\\clang32\\bin"),       COUNT("\\clang32\\bin") - 1 },
-        { TEXT("*\\msys*\\clang64\\bin"),       COUNT("\\clang64\\bin") - 1 },
-        { TEXT("*\\msys*\\usr\\bin"),           COUNT("\\usr\\bin") - 1 },
-        { TEXT("*\\cygwin*\\bin"),              COUNT("\\bin") - 1 }
+        { TEXT("*\\msys*\\clangarm64\\bin"),    COUNT1("\\clangarm64\\bin") },
+        { TEXT("*\\msys*\\mingw32\\bin"),       COUNT1("\\mingw32\\bin") },
+        { TEXT("*\\msys*\\mingw64\\bin"),       COUNT1("\\mingw64\\bin") },
+        { TEXT("*\\msys*\\ucrt64\\bin"),        COUNT1("\\ucrt64\\bin") },
+        { TEXT("*\\msys*\\clang32\\bin"),       COUNT1("\\clang32\\bin") },
+        { TEXT("*\\msys*\\clang64\\bin"),       COUNT1("\\clang64\\bin") },
+        { TEXT("*\\msys*\\usr\\bin"),           COUNT1("\\usr\\bin") },
+        { TEXT("*\\cygwin*\\bin"),              COUNT1("\\bin") }
     };
 
     // nothing found yet
@@ -220,8 +222,8 @@ BOOL convert_path(PTSTR pszTo, size_t cchTo, POSIX* ppx, const char* from)
         ++from;
 
         // skip over cygdrive/
-        if (!compare_bytes(from, ARRAY("cygdrive/") - 1))
-            from += COUNT("cygdrive/") - 1;
+        if (!compare_bytes(from, ARRAY1("cygdrive/")))
+            from += COUNT1("cygdrive/");
 
         // substitute: /c --> c:
         if (IS_LATIN(from[0]) && from[1] == '/') {
@@ -229,7 +231,7 @@ BOOL convert_path(PTSTR pszTo, size_t cchTo, POSIX* ppx, const char* from)
             tmp[1] = TEXT(':');
             tmp[2] = TEXT('/');
             tmp[3] = TEXT('\0');
-            from += COUNT("c/") - 1;
+            from += COUNT1("c/");
         } else {
             // start from POSIX root
             StringCchCopy(ARRAY(tmp), ppx->root);
@@ -237,15 +239,15 @@ BOOL convert_path(PTSTR pszTo, size_t cchTo, POSIX* ppx, const char* from)
 
             if (ppx->sys == POSIX_CYGWIN) {
                 // /usr/bin --> /bin
-                if (!compare_bytes(from, ARRAY("usr/bin/") - 1)) {
+                if (!compare_bytes(from, ARRAY1("usr/bin/"))) {
                     StringCchCat(ARRAY(tmp), TEXT("bin/"));
-                    from += COUNT("usr/bin/") - 1;
+                    from += COUNT1("usr/bin/");
                 }
             }  else {
                 // /bin --> /usr/bin
-                if (!compare_bytes(from, ARRAY("bin/") - 1)) {
+                if (!compare_bytes(from, ARRAY1("bin/"))) {
                     StringCchCat(ARRAY(tmp), TEXT("usr/bin/"));
-                    from += COUNT("bin/") - 1;
+                    from += COUNT1("bin/");
                 }
             }
         }
@@ -374,7 +376,7 @@ void print_error_and_exit(DWORD dwErrorCode)
     if (cchErrorText > 0) {
         HANDLE hStdErr = GetStdHandle(STD_ERROR_HANDLE);
         DWORD cb;
-        WriteConsole(hStdErr, ARRAY(TEXT(PROGRAM_NAME " error: ")) - 1, &cb, NULL);
+        WriteConsole(hStdErr, ARRAY1(TEXT(PROGRAM_NAME " error: ")), &cb, NULL);
         WriteConsole(hStdErr, pszErrorText, cchErrorText, &cb, NULL);
         // no need to free memory before exit
         //HeapFree(GetProcessHeap(), 0, pszErrorText);
@@ -406,14 +408,14 @@ int main(void)
     // check if we're renamed
     if (CompareString(LOCALE_USER_DEFAULT, NORM_IGNORECASE, szName, -1,
         TEXT(PROGRAM_NAME), -1) == CSTR_EQUAL) {
-        WriteConsole(GetStdHandle(STD_ERROR_HANDLE), ARRAY(TEXT(
+        WriteConsole(GetStdHandle(STD_ERROR_HANDLE), ARRAY1(TEXT(
 "Hello Windows(R) world! It\'s me, humble \'" PROGRAM_NAME "\' utility.\n\n"
 "I can help you to execute MSYS/Cygwin shell scripts from your native \'cmd\',\n"
 "but only if you already have it on your PATH.\n\n"
 "All you have to do is to rename or symlink me, so that I match the script you want.\n"
 "And, of course, please, make sure that we\'re both on the PATH too.\n\n"
 "Let\'s do it!\n\n"
-            )) - 1, &(DWORD) { 0 }, NULL);
+            )), &(DWORD) { 0 }, NULL);
         print_error_and_exit(ERROR_CANT_RESOLVE_FILENAME);
     }
 
