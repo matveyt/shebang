@@ -1,22 +1,6 @@
-BUILDTYPE ?= minsize
-NOSTDLIB ?= off
-UNICODE ?= on
-include yama.mk
+CFLAGS := -O -std=c99 -Wall -Wextra -Wpedantic -Werror
+LDFLAGS := -s -fno-ident -municode
+.DEFAULT_GOAL := $(notdir $(CURDIR))
 
+LDFLAGS += -nostartfiles
 LDLIBS += -lshlwapi
-
-define NOSTDLIB.on
-    CPPFLAGS += -DNOSTDLIB -DARGV=none
-    LDFLAGS += -nostdlib
-    LDLIBS += -lkernel32
-    $$(call yama.goalExe,shebang,../nocrt0/nocrt0c)
-endef
-define UNICODE.on
-    CPPFLAGS += -D_UNICODE -DUNICODE
-    LDFLAGS += -municode
-endef
-$(call yama.options,NOSTDLIB UNICODE)
-
-all: shebang
-$(call yama.goalExe,shebang,shebang)
-$(call yama.rules)

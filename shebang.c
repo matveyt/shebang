@@ -6,64 +6,31 @@
  */
 
 
-/** Build instructions:
-
-    -DUNICODE = builds 'unicode' version instead of 'ansi'
-    -DNOSTDLIB (also requires -O) = no libc dependencies, useful for GCC -nostdlib build
-
-**/
-
-
-#if __STDC_VERSION__ < 199901L && !defined(__POCC__)
-#error C99 compiler required.
-#endif
+#ifndef UNICODE
+#define UNICODE
+#endif // UNICODE
+#ifndef _UNICODE
+#define _UNICODE
+#endif // _UNICODE
 
 
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
+#include <stdarg.h>
+#include <tchar.h>
+
+#include <windef.h>
+#include <winbase.h>
 #include <shlwapi.h>
+#include <strsafe.h>
 
 
-#ifndef __GNUC__
+#if !defined(__GNUC__)
 #pragma comment(lib, "shlwapi.lib")
 #endif // __GNUC__
 
 
-// GCC/MinGW has no libstrsafe.a separate from libmingwex.a,
-// so we have to inline it in order to get rid of libc
-#ifdef NOSTDLIB
-#ifdef __GNUC__
-#ifdef __NO_INLINE__
-#error Option -O is required.
-#endif // __NO_INLINE__
-#define _FORCE_INLINE inline __attribute__ ((always_inline))
-#ifdef UNICODE
-_FORCE_INLINE HRESULT WINAPI StringCchLengthW(LPCWSTR,size_t,size_t*);
-_FORCE_INLINE HRESULT WINAPI StringLengthWorkerW(LPCWSTR,size_t,size_t*);
-_FORCE_INLINE HRESULT WINAPI StringCchCopyW(LPWSTR,size_t,LPCWSTR);
-_FORCE_INLINE HRESULT WINAPI StringCopyWorkerW(LPWSTR,size_t,LPCWSTR);
-_FORCE_INLINE HRESULT WINAPI StringCchCopyNW(LPWSTR,size_t,LPCWSTR,size_t);
-_FORCE_INLINE HRESULT WINAPI StringCopyNWorkerW(LPWSTR,size_t,LPCWSTR,size_t);
-_FORCE_INLINE HRESULT WINAPI StringCchCatW(LPWSTR,size_t,LPCWSTR);
-_FORCE_INLINE HRESULT WINAPI StringCatWorkerW(LPWSTR,size_t,LPCWSTR);
-#else
-_FORCE_INLINE HRESULT WINAPI StringCchLengthA(LPCSTR,size_t,size_t*);
-_FORCE_INLINE HRESULT WINAPI StringLengthWorkerA(LPCSTR,size_t,size_t*);
-_FORCE_INLINE HRESULT WINAPI StringCchCopyA(LPSTR,size_t,LPCSTR);
-_FORCE_INLINE HRESULT WINAPI StringCopyWorkerA(LPSTR,size_t,LPCSTR);
-_FORCE_INLINE HRESULT WINAPI StringCchCopyNA(LPSTR,size_t,LPCSTR,size_t);
-_FORCE_INLINE HRESULT WINAPI StringCopyNWorkerA(LPSTR,size_t,LPCSTR,size_t);
-_FORCE_INLINE HRESULT WINAPI StringCchCatA(LPSTR,size_t,LPCSTR);
-_FORCE_INLINE HRESULT WINAPI StringCatWorkerA(LPSTR,size_t,LPCSTR);
-#endif // UNICODE
-#endif // __GNUC__
-#endif // NOSTDLIB
-#include <strsafe.h>
-
-
 // our original name
 #define PROGRAM_NAME    "shebang"
-// macro to facilitate function calling
+// macro to facilitate function call
 #define COUNT(a)        (sizeof(a) / sizeof(*a))
 #define COUNT1(a)       (COUNT(a) - 1)
 #define ARRAY(a)        (a), COUNT(a)
@@ -206,7 +173,7 @@ void setup_posix_env(POSIX* ppx)
     TCHAR tmp[256]; // max
     if (GetEnvironmentVariable(TEXT("USERNAME"), ARRAY(tmp)))
         SetEnvironmentVariable(TEXT("USER"), tmp);
-    if (GetComputerNameEx(ComputerNameDnsHostname, tmp, &(DWORD) { COUNT(tmp) }))
+    if (GetComputerNameEx(ComputerNameDnsHostname, tmp, &(DWORD){COUNT(tmp)}))
         SetEnvironmentVariable(TEXT("HOSTNAME"), tmp);
 }
 
@@ -385,12 +352,8 @@ void print_error_and_exit(DWORD dwErrorCode)
 }
 
 
-// application standard entry point
-#ifdef UNICODE
-int wmain(void)
-#else
-int main(void)
-#endif // UNICODE
+// application entry point
+int _tmain(void)
 {
     DWORD dwErrorCode;
 
@@ -415,7 +378,7 @@ int main(void)
 "All you have to do is to rename or symlink me, so that I match the script you want.\n"
 "And, of course, please, make sure that we\'re both on the PATH too.\n\n"
 "Let\'s do it!\n\n"
-            )), &(DWORD) { 0 }, NULL);
+            )), &(DWORD){0}, NULL);
         print_error_and_exit(ERROR_CANT_RESOLVE_FILENAME);
     }
 
@@ -453,9 +416,9 @@ int main(void)
     setup_posix_env(&px);
 
     // launch shell
-    PROCESS_INFORMATION pi = { 0 };
+    PROCESS_INFORMATION pi = {0};
     if (!CreateProcess(NULL, szCmdLine, NULL, NULL, FALSE, 0, NULL, NULL,
-        &(STARTUPINFO) { .cb = sizeof(STARTUPINFO) }, &pi))
+        &(STARTUPINFO){.cb = sizeof(STARTUPINFO)}, &pi))
         print_error_and_exit(GetLastError());
 
     // wait for the child and exit
@@ -465,4 +428,15 @@ int main(void)
     //CloseHandle(pi.hProcess);
     //CloseHandle(pi.hThread);
     return (int)dwErrorCode;
+}
+
+
+// micro startup code (requires -nostartfiles)
+#if defined(__GNUC__) || !defined(_UNICODE)
+#define wmainCRTStartup mainCRTStartup
+#endif // __GNUC__
+__declspec(noreturn)
+void wmainCRTStartup(void)
+{
+    ExitProcess(_tmain());
 }

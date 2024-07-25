@@ -1,2 +1,0 @@
-option('ansi', type : 'boolean', value : false, description : 'ANSI or Unicode build')
-option('nostdlib', type : 'boolean', value : false, description : 'Do not use libc')
