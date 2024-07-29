@@ -6,17 +6,12 @@
  */
 
 
-#ifndef UNICODE
-#define UNICODE
-#endif // UNICODE
-#ifndef _UNICODE
+#if defined(UNICODE) && !defined(_UNICODE)
 #define _UNICODE
-#endif // _UNICODE
-
+#endif // UNICODE
 
 #include <stdarg.h>
 #include <tchar.h>
-
 #include <windef.h>
 #include <winbase.h>
 #include <shlwapi.h>
@@ -307,7 +302,7 @@ BOOL can_shebang(PCTSTR pszScriptName, PTSTR pszShellName, size_t cchShellName,
     char buf[cchShellName]; // VLA
     DWORD cb;
     const char *pc1, *pc2;
-    if (!ReadFile(hScriptFile, buf, cchShellName, &cb, NULL)) {
+    if (!ReadFile(hScriptFile, buf, (DWORD)cchShellName, &cb, NULL)) {
         // cannot read file
         *pdwErrorCode = GetLastError();
     } else if (!parse_line(buf, (size_t)cb, &pc1, &pc2)) {
@@ -431,12 +426,6 @@ int _tmain(void)
 }
 
 
-// micro startup code (requires -nostartfiles)
-#if defined(__GNUC__) || !defined(_UNICODE)
-#define wmainCRTStartup mainCRTStartup
-#endif // __GNUC__
-__declspec(noreturn)
-void wmainCRTStartup(void)
-{
-    ExitProcess(_tmain());
-}
+// micro CRT startup code
+#define ARGV none
+#include "nocrt0c.c"
