@@ -10,10 +10,9 @@
 #define _UNICODE
 #endif // UNICODE
 
-#include <stdarg.h>
+#define WIN32_LEAN_AND_MEAN
 #include <tchar.h>
-#include <windef.h>
-#include <winbase.h>
+#include <windows.h>
 #include <shlwapi.h>
 #include <strsafe.h>
 
