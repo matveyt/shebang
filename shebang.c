@@ -426,5 +426,7 @@ int _tmain(void)
 
 
 // micro CRT startup code
+#if __has_include("nocrt0c.c")
 #define ARGV none
 #include "nocrt0c.c"
+#endif
